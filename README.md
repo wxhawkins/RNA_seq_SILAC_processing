@@ -21,11 +21,9 @@ See "Plots" directory for interactive HTML versions of these plots.
 
 
 ![2d_rna_scat](./Images/2d_rna_scat.png)  
-
-
+  
 ![2d_rna_prot_scat](./Images/2d_rna_prot_scat.png)  
-
-
+  
 ![3d_scat](./Images/3d_scat.png)
 
 
