@@ -20,13 +20,11 @@ See "Plots" directory for interactive HTML versions of these plots.
 
 
 
-![image-20200420102920764](C:\Users\wxhaw\AppData\Roaming\Typora\typora-user-images\image-20200420102920764.png)
+![2d_rna_scat](./Images/2d_rna_scat.png)
 
+![2d_rna_prot_scat](./Images/2d_rna_prot_scat.png)
 
-
-![image-20200420104557703](C:\Users\wxhaw\AppData\Roaming\Typora\typora-user-images\image-20200420104557703.png)
-
-![image-20200420104506839](C:\Users\wxhaw\AppData\Roaming\Typora\typora-user-images\image-20200420104506839.png)
+![3d_scat](./Images/3d_scat.png)
 
 
 
