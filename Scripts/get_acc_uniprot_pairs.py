@@ -23,6 +23,7 @@ args = parser.parse_args()
 ERR_PATH = Path(Path.cwd() / "out_files" / args.err_file_name)
 OUT_PATH = Path(Path.cwd() / "out_files" / args.out_file_name)
 
+
 class Protein:
     """
         Stores information for a single protein including the common name and Genbank accession
@@ -34,7 +35,7 @@ class Protein:
         self.prot_id = prot_id_
         self.gene_name = gene_name_
         self.complete = self.get_status()
-        
+
     def __repr__(self):
         return (",".join([str(self.gene_id), str(self.prot_id), str(self.gene_name)]) + "\n")
 
@@ -137,7 +138,7 @@ def make_request(gene_id):
         # If an error is encountered, display error message and return filler values for Uniprot ID and gene name
         if args.verbose:
             print(f"\n-------------ERROR ENCOUNTERED AT ACC {gene_id}--------------\n")
-        
+
         u_id = "None"
         gene_name = "None"
 
@@ -149,7 +150,7 @@ def get_info(acc):
     """
         Submit Genbank accession numbers for querying against Uniprot database.
     """
-    
+
     u_id, gene_name = make_request(acc)
 
     # If query fails, retry with version number suffix removed
@@ -194,7 +195,7 @@ def spawn_threads(num_workers):
 
     with futures.ThreadPoolExecutor(max_workers=len(acc_pool)) as executor:
         results = (list(executor.map(get_info, acc_pool)))
-    
+
         if args.verbose:
             print("\n".join([",  ".join(row) for row in results]))
 
@@ -211,7 +212,7 @@ if __name__ == "__main__":
         # Read in and clean starting RNA seq dataset
         df = get_cleaned_df(args.in_path)
         accs = df["accession"]
-        acc_pool  = []
+        acc_pool = []
 
         # Submit query for every accession number
         for index, acc in enumerate(accs):
@@ -225,13 +226,13 @@ if __name__ == "__main__":
                 # Empty pool
                 acc_pool = []
                 acc_pool.append(acc)
-            
+
                 # Print status of run
                 print(f" {index} ".center(100, "-"))
 
         # Clear out queue at end of the run
         proteins += [Protein(*data) for data in spawn_threads(num_workers=len(acc_pool))]
-        
+
         # Dump information to Excel files
         dump_data(proteins)
 
