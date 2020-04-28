@@ -19,23 +19,42 @@ parser.add_argument("-f", "--force", action="store_true", dest="force", default=
 
 args = parser.parse_args()
 
+# Construct output paths
 ERR_PATH = Path(Path.cwd() / "out_files" / args.err_file_name)
 OUT_PATH = Path(Path.cwd() / "out_files" / args.out_file_name)
 
-
-
 class Protein:
-    def __init__(self, rna_id_="None", prot_id_="None", gene_name_="None"):
-        self.rna_id = rna_id_
+    """
+        Stores information for a single protein including the common name and Genbank accession
+        number for the gene from which it arrises.
+    """
+
+    def __init__(self, gene_id_="None", prot_id_="None", gene_name_="None"):
+        self.gene_id = gene_id_
         self.prot_id = prot_id_
         self.gene_name = gene_name_
+        self.complete = self.get_status()
+        
+    def __repr__(self):
+        return (",".join([str(self.gene_id), str(self.prot_id), str(self.gene_name)]) + "\n")
+
     def __str__(self):
-        return "hello?" 
+        return (",".join([str(self.gene_id), str(self.prot_id), str(self.gene_name)]) + "\n")
+
+    def get_status(self):
+        """
+            Determines is all information has been sucessfully acquired for this protein
+        """
+
+        if "None" in (self.prot_id, self.gene_name):
+            return False
+
+        return True
 
 
-def extract_rna_id(str_):
+def extract_gene_id(str_):
     """
-        Extract RNA ID (GenBank accession number) from Nr Description information.
+        Extract Gene ID (GenBank accession number) from Nr Description information.
     """
 
     regex = re.compile("(.+)//")
@@ -51,13 +70,12 @@ def get_cleaned_df(in_file_path, delim="\t"):
     """
         Perform minor data cleaning on starting DataFrame in preparation for downstream processes.
     """
+
     try:
         df = pd.read_excel(in_file_path, sep=delim)
     except PermissionError:
         print("Could open input file. Ensure file is not open.")
         return False
-
-    print(df.shape)
 
     # Fill empty cells with placeholder
     df.fillna("N/A", inplace=True)
@@ -71,31 +89,27 @@ def get_cleaned_df(in_file_path, delim="\t"):
         df = df.sample(min(df.shape[0], int(args.sample)))
 
     # Add accession column with info extracted form "nr_description"
-    df.loc[:, "accession"] = df["Nr Description"].apply(extract_rna_id)
-    print(df.shape)
+    df.loc[:, "accession"] = df["Nr Description"].apply(extract_gene_id)
     return df
 
 
-def dump_failures(err_accs):
+def dump_data(proteins):
     """
-        Write accessions for which there was no hit in Uniprot to a CSV file.
-    """
-
-    with open(ERR_PATH, "w") as err_out_file:
-        err_out_file.write("\n".join(err_accs))
-
-
-def dump_data(data):
-    """
-        Write RNA IDs, Uniprot IDs and gene names to Excel file.
+        Write gene IDs, Uniprot IDs and gene names to Excel files.
     """
 
-    with open(OUT_PATH, "w") as out_file:
-        for row in data:
-            out_file.write(",".join(row) + "\n")
+    try:
+        with open(OUT_PATH, "w") as success_out_file, open(ERR_PATH, "w") as failure_out_file:
+            for prot in proteins:
+                # Proteins with incomplete information are dumped to an separate file
+                out_file = success_out_file if prot.complete else failure_out_file
+                out_file.write(str(prot))
+    except PermissionError:
+        print("Could not write to output file. Ensure output files are not open.")
+        return False
 
 
-def make_request(rna_id):
+def make_request(gene_id):
     """
         Queries Uniprot database with Genbank accession number and extracts Uniprot accession number and gene name
     """
@@ -103,7 +117,7 @@ def make_request(rna_id):
     url = "http://www.uniprot.org/uniprot/"
     payload = {
                 "format": "tab",
-                "query": (rna_id),
+                "query": (gene_id),
                 "columns": "id,genes",
               }
 
@@ -122,7 +136,7 @@ def make_request(rna_id):
     except IndexError:
         # If an error is encountered, display error message and return filler values for Uniprot ID and gene name
         if args.verbose:
-            print(f"\n-------------ERROR ENCOUNTERED AT ACC {rna_id}--------------\n")
+            print(f"\n-------------ERROR ENCOUNTERED AT ACC {gene_id}--------------\n")
         
         u_id = "None"
         gene_name = "None"
@@ -178,18 +192,18 @@ def spawn_threads(num_workers):
         Spawn specified number of threads and execute Uniprot ID queries.
     """
 
-    data_list = []
     with futures.ThreadPoolExecutor(max_workers=len(acc_pool)) as executor:
-        new_rows = (list(executor.map(get_info, acc_pool)))
-        data_list += [row for row in new_rows if "None" not in row]
+        results = (list(executor.map(get_info, acc_pool)))
     
         if args.verbose:
-            print("\n".join([",  ".join(row) for row in new_rows]))
+            print("\n".join([",  ".join(row) for row in results]))
 
-    return data_list
+    return results
 
 
 if __name__ == "__main__":
+    proteins = []
+
     # Abort if user does not approve file override
     if handle_paths():
         start = time.time()
@@ -198,8 +212,6 @@ if __name__ == "__main__":
         df = get_cleaned_df(args.in_path)
         accs = df["accession"]
         acc_pool  = []
-        data_list = []
-        err_accs  = []
 
         # Submit query for every accession number
         for index, acc in enumerate(accs):
@@ -208,7 +220,7 @@ if __name__ == "__main__":
                 acc_pool.append(acc)
             else:
                 # Have each thread submit Uniprot query for one accession from pool
-                data_list += spawn_threads(len(acc_pool))
+                proteins += [Protein(*data) for data in spawn_threads(num_workers=len(acc_pool))]
 
                 # Empty pool
                 acc_pool = []
@@ -218,12 +230,11 @@ if __name__ == "__main__":
                 print(f" {index} ".center(100, "-"))
 
         # Clear out queue at end of the run
-        num_workers = len(acc_pool)
-        data_list += spawn_threads(num_workers)
+        proteins += [Protein(*data) for data in spawn_threads(num_workers=len(acc_pool))]
         
-        # Dump information to CSV files
-        dump_data(data_list)
-        dump_failures(err_accs)
+        # Dump information to Excel files
+        dump_data(proteins)
 
+        num_complete = len([prot for prot in proteins if prot.complete])
         print(f"Finished in {round((time.time() - start), 1)} seconds")
-        print(f"Information successfully collected for {len(data_list)} RNA IDs of {df.shape[0]}")
+        print(f"Information successfully collected for {num_complete} gene IDs of {df.shape[0]}")
