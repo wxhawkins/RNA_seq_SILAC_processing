@@ -1,0 +1,4 @@
+
+
+-get_pairs script fails to get info for some RNA accessions that have annotated genes in rna_input_data. Might want to go back through, extract gene name, then query this against Uniprot to get Uniprot ID
+-Might want to specify Sc in Uniprot query
